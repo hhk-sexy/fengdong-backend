@@ -1,0 +1,38 @@
+[
+    {
+      "id": 1,
+      "name": "Alice",
+      "age": 28,
+      "country": "USA",
+      "amount": 1350.75
+    },
+    {
+      "id": 2,
+      "name": "Bob",
+      "age": 34,
+      "country": "UK",
+      "amount": 980.40
+    },
+    {
+      "id": 3,
+      "name": "Charlie",
+      "age": 23,
+      "country": "China",
+      "amount": 640.00
+    },
+    {
+      "id": 4,
+      "name": "Diana",
+      "age": 30,
+      "country": "Japan",
+      "amount": 820.10
+    },
+    {
+      "id": 5,
+      "name": "Ethan",
+      "age": 45,
+      "country": "Germany",
+      "amount": 1500.00
+    }
+  ]
+  
