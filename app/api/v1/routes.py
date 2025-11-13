@@ -25,6 +25,11 @@ from ...services.docx_service import docx_service
 from ...config import settings
 from ...database import get_db
 
+import csv
+import sys
+sys.path.append('/data/share/lyc_zdjx/zdjx/my_api')
+import logic, schemas
+
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 
 @router.get("/datasets", response_model=list[DatasetInfo])
@@ -371,3 +376,68 @@ async def generate_text(
 def get_count(name: str, filter: Optional[str] = Query(None)):
     path = resolve_csv_path(name)
     return csv_service.count(path, filter)
+
+
+OUTPUT_DIR = '/data/share/lyc_zdjx/zdjx/my_api/output'
+
+@router.post("/generate/", response_model=schemas.GenerateResponse)
+def generate_data(request: schemas.GenerateRequest):
+    """
+    生成数据并返回去重后的结果
+    """
+    
+    raw_output_path = os.path.join(OUTPUT_DIR, f'raw.csv')
+    dedup_output_path = os.path.join(OUTPUT_DIR, f'dedup.csv')
+
+    try:
+        # 1. 生成数据
+        logic.generate_great_data(request.num_samples, request.columns, raw_output_path)
+
+        # 2. 去重数据
+        logic.deduplicate_data(raw_output_path, dedup_output_path)
+
+        # 3. 将 CSV 转换为列表
+        data_list = logic.csv_to_list(dedup_output_path)
+
+        return schemas.GenerateResponse(data=data_list)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/generate_and_predict/", response_model=List[Dict[str, Any]])
+async def generate_and_predict(request: schemas.GenerateRequest):
+    """
+    生成数据，进行预测，并返回最终的预测结果
+    """
+    raw_output_path = os.path.join(OUTPUT_DIR, 'raw.csv')
+    dedup_output_path = os.path.join(OUTPUT_DIR, 'dedup.csv')
+    predict_result_path = os.path.join(OUTPUT_DIR, 'predict_output_abnormal_model_reason.csv')
+
+    try:
+        # 1. 生成数据
+        logic.generate_great_data(request.num_samples, request.columns, raw_output_path)
+
+        # 2. 去重数据
+        logic.deduplicate_data(raw_output_path, dedup_output_path)
+
+        # 3. 进行预测
+        # 调用 GNN 预测
+        predict_result_path = os.path.join(OUTPUT_DIR, "predict_result.csv")
+        logic.predict_gnn_data(dedup_output_path, predict_result_path)
+    
+        # 直接使用预测脚本生成的异常原因文件，避免被解释逻辑覆盖导致 model_attribute 为空
+        reason_result_path = os.path.join(OUTPUT_DIR, "predict_result_abnormal_model_reason.csv")
+        if not os.path.exists(reason_result_path):
+            # 若文件不存在，则回退到规则解释生成
+            logic.explain_with_rules(dedup_output_path, predict_result_path, reason_result_path)
+
+        # 读取异常原因结果，返回为表头对应的字典列表
+        with open(reason_result_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            results = list(reader)
+
+        return results
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
